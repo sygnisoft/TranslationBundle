@@ -7,19 +7,19 @@ namespace Kilik\TranslationBundle\Command;
 
 use Kilik\TranslationBundle\Components\CsvLoader;
 use Kilik\TranslationBundle\Services\LoadTranslationService;
-use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Yaml\Dumper;
+use Symfony\Component\Filesystem\Filesystem;
 
 /**
  * Class ImportCommand.
  */
-class ImportCommand extends ContainerAwareCommand
+class ImportCommand extends Command
 {
-
     /**
      * @var \Symfony\Component\Console\Input\InputInterface
      */
@@ -38,11 +38,22 @@ class ImportCommand extends ContainerAwareCommand
     private $loadService;
 
     /**
-     * @param LoadTranslationService $service
+     * @var Filesystem
      */
-    public function setLoadService(LoadTranslationService $service)
+    private $filesystem;
+
+    /**
+     * ImportCommand constructor.
+     *
+     * @param LoadTranslationService $loadService
+     * @param Filesystem             $filesystem
+     * @param string|null            $name
+     */
+    public function __construct(LoadTranslationService $loadService, FileSystem $filesystem, ?string $name)
     {
-        $this->loadService = $service;
+        parent::__construct($name);
+        $this->loadService = $loadService;
+        $this->filesystem = $filesystem;
     }
 
     /**
@@ -56,7 +67,9 @@ class ImportCommand extends ContainerAwareCommand
             ->addArgument('locales', InputArgument::REQUIRED, 'Locales to import from CSV file to bundles')
             ->addArgument('csv', InputArgument::REQUIRED, 'Output CSV filename')
             ->addOption('domains', null, InputOption::VALUE_OPTIONAL, 'Domains', 'all')
-            ->addOption('bundles', null, InputOption::VALUE_OPTIONAL, 'Limit to bundles', 'all');
+            ->addOption('bundles', null, InputOption::VALUE_OPTIONAL, 'Limit to bundles', 'all')
+            ->addOption('force', null, InputOption::VALUE_OPTIONAL, 'Override files', false)
+            ->addOption('merge', null, InputOption::VALUE_OPTIONAL, 'Merge into main bundle', false);
     }
 
     /**
@@ -67,14 +80,15 @@ class ImportCommand extends ContainerAwareCommand
         $this->input = $input;
         $this->output = $output;
 
-        $fs = $this->getContainer()->get('filesystem');
-
         $bundlesNames = explode(',', $input->getOption('bundles'));
         $domains = explode(',', $input->getOption('domains'));
         $locales = explode(',', $input->getArgument('locales'));
 
+        $force = $input->getOption('force') === null;
+        $merge = $input->getOption('merge') === null;
+
         // load CSV file
-        $importTranslations = CsvLoader::load($input->getArgument('csv'), $bundlesNames, $domains, $locales);
+        $importTranslations = CsvLoader::load($input->getArgument('csv'), $bundlesNames, $domains, $locales, $merge);
 
         // load translations for matched bundles
         $bundles = [];
@@ -89,7 +103,9 @@ class ImportCommand extends ContainerAwareCommand
             }
         }
 
-        $this->loadService->loadBundlesTranslationFiles($bundles, $locales, $domains);
+        if (!$force) {
+            $this->loadService->loadBundlesTranslationFiles($bundles, $locales, $domains);
+        }
 
         // merge translations
         $allTranslations = array_merge_recursive($this->loadService->getTranslations(), $importTranslations);
@@ -117,8 +133,8 @@ class ImportCommand extends ContainerAwareCommand
                         $basePath = $bundle->getPath().'/Resources/translations';
                     }
                     $filePath = $basePath.'/'.$domain.'.'.$locale.'.yml';
-                    if (!$fs->exists($basePath)) {
-                        $fs->mkdir($basePath);
+                    if (!$this->filesystem->exists($basePath)) {
+                        $this->filesystem->mkdir($basePath);
                     }
 
                     // prepare

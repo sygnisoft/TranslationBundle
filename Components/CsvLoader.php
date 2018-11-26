@@ -7,7 +7,6 @@ namespace Kilik\TranslationBundle\Components;
  */
 class CsvLoader
 {
-
     /**
      * Load CSV File.
      *
@@ -20,16 +19,15 @@ class CsvLoader
      *
      * @return array
      */
-    public static function load($filepath, $bundles, $domains, $locales)
+    public static function load($filepath, $bundles, $domains, $locales, $merge)
     {
-        $lines = file($filepath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        $file = fopen($filepath, 'r');
         $localesKeys = [];
         $columnsKeys = null;
 
         $translations = [];
 
-        foreach ($lines as $lineId => $line) {
-            $row = explode("\t", $line);
+        while ($row = fgetcsv($file, 0, "\t")) {
             // detect columns names
             if (is_null($columnsKeys)) {
                 $columnsKeys = [];
@@ -54,15 +52,16 @@ class CsvLoader
                 }
             } // keep in memory translations
             else {
-                $bundleName = $row[$columnsKeys['Bundle']];
+                $bundleName = $merge ? 'app' : $row[$columnsKeys['Bundle']];
                 $domainName = $row[$columnsKeys['Domain']];
                 if (in_array($bundleName, $bundles) || count($bundles) == 1 && $bundles[0] == 'all') {
                     if (in_array($domainName, $domains) || count($domains) == 1 && $domains[0] == 'all') {
                         foreach ($locales as $locale) {
                             // replace new line unescaped by reald newline (works good wy yaml dumper)
                             if (!isset($row[$localesKeys[$locale]])) {
-                                throw new \Exception('missing column value on line '.$lineId.', column '.$localesKeys[$locale]);
-
+                                throw new \Exception(
+                                    'missing column value on line '.$lineId.', column '.$localesKeys[$locale]
+                                );
                             }
                             $value = str_replace('\n', "\n", $row[$localesKeys[$locale]]);
                             // keep only non blank translations

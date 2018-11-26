@@ -6,7 +6,7 @@
 namespace Kilik\TranslationBundle\Command;
 
 use Kilik\TranslationBundle\Services\LoadTranslationService;
-use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -15,7 +15,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 /**
  * Class ExportCommand.
  */
-class ExportCommand extends ContainerAwareCommand
+class ExportCommand extends Command
 {
 
     /**
@@ -26,11 +26,16 @@ class ExportCommand extends ContainerAwareCommand
     private $loadService;
 
     /**
-     * @param LoadTranslationService $service
+     * ImportCommand constructor.
+     *
+     * @param LoadTranslationService $loadService
+     * @param Filesystem             $filesystem
+     * @param string|null            $name
      */
-    public function setLoadService(LoadTranslationService $service)
+    public function __construct(LoadTranslationService $loadService, ?string $name)
     {
-        $this->loadService = $service;
+        parent::__construct($name);
+        $this->loadService = $loadService;
     }
 
     /**
